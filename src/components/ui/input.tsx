@@ -10,7 +10,7 @@ export function Input({ label, error, className = "", ...props }: InputProps) {
         <label className="text-sm font-medium text-gray-700">{label}</label>
       )}
       <input
-        className={`rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 ${error ? "border-red-500" : ""} ${className}`}
+        className={`rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 ${error ? "border-red-500" : ""} ${className}`}
         {...props}
       />
       {error && <p className="text-xs text-red-600">{error}</p>}
@@ -31,11 +31,11 @@ export function Select({ label, error, options, className = "", ...props }: Sele
         <label className="text-sm font-medium text-gray-700">{label}</label>
       )}
       <select
-        className={`rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 ${error ? "border-red-500" : ""} ${className}`}
+        className={`rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 ${error ? "border-red-500" : ""} ${className}`}
         {...props}
       >
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
+          <option key={opt.value} value={opt.value} className="text-gray-900">
             {opt.label}
           </option>
         ))}
@@ -57,7 +57,7 @@ export function TextArea({ label, error, className = "", ...props }: TextAreaPro
         <label className="text-sm font-medium text-gray-700">{label}</label>
       )}
       <textarea
-        className={`rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 ${error ? "border-red-500" : ""} ${className}`}
+        className={`rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 ${error ? "border-red-500" : ""} ${className}`}
         {...props}
       />
       {error && <p className="text-xs text-red-600">{error}</p>}
