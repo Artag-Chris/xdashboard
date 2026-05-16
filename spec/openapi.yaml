@@ -1,0 +1,1874 @@
+openapi: "3.1.0"
+info:
+  title: Gateway API — Dashboard Frontend
+  version: "1.0.0"
+  description: |
+    API del gateway. El frontend NUNCA llama directo a los microservicios.
+    Solo al gateway, que internamente publica/consume en RabbitMQ y orquesta todo.
+
+servers:
+  - url: /api
+    description: Proxy de desarrollo (rewrite en next.config.ts)
+
+paths:
+  # ──────────────────────────────────────────────
+  # IDENTITY
+  # ──────────────────────────────────────────────
+  /v1/identity/resolve:
+    post:
+      operationId: identityResolve
+      summary: Crea o vincula una identidad
+      tags: [Identity]
+      x-pattern: fire-and-forget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityResolveRequest"
+      responses:
+        "202":
+          description: Identity resolution queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedResponse"
+
+  /v1/identity/users:
+    get:
+      operationId: identityListUsers
+      summary: Lista usuarios con filtros opcionales
+      tags: [Identity]
+      x-pattern: rpc
+      parameters:
+        - name: channel
+          in: query
+          schema:
+            type: string
+        - name: includeDeleted
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /v1/identity/users/{userId}:
+    get:
+      operationId: identityGetUser
+      summary: Detalle de un usuario con identidades
+      tags: [Identity]
+      x-pattern: rpc
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Usuario con identidades
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: identityDeleteUser
+      summary: Soft-delete de usuario
+      tags: [Identity]
+      x-pattern: fire-and-forget
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "202":
+          description: Soft-delete queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedResponse"
+
+  /v1/identity/merge:
+    post:
+      operationId: identityMerge
+      summary: Fusiona dos usuarios
+      tags: [Identity]
+      x-pattern: fire-and-forget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityMergeRequest"
+      responses:
+        "202":
+          description: Merge queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedResponse"
+
+  /v1/identity/report:
+    get:
+      operationId: identityReport
+      summary: Reporte agregado de identidades
+      tags: [Identity]
+      x-pattern: rpc
+      responses:
+        "200":
+          description: Reporte agregado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityReport"
+
+  /v1/identity/users/{userId}/ai-settings:
+    patch:
+      operationId: identityAISettings
+      summary: Activa/desactiva IA para un usuario
+      tags: [Identity]
+      x-pattern: fire-and-forget
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                aiEnabled:
+                  type: boolean
+              required: [aiEnabled]
+      responses:
+        "202":
+          description: AI settings update queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedResponse"
+
+  # ──────────────────────────────────────────────
+  # MESSAGES
+  # ──────────────────────────────────────────────
+  /v1/messages/send:
+    post:
+      operationId: messagesSend
+      summary: Envía un mensaje a un canal
+      tags: [Messages]
+      x-pattern: fire-and-forget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "202":
+          description: Mensaje encolado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendMessageResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /v1/messages/{id}:
+    get:
+      operationId: messagesGet
+      summary: Estado de un mensaje específico
+      tags: [Messages]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Estado del mensaje
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageStatus"
+
+  /v1/messages/instagram/conversations:
+    get:
+      operationId: instagramConversations
+      summary: Lista conversaciones activas de Instagram
+      tags: [Messages, Instagram]
+      x-pattern: rpc
+      responses:
+        "200":
+          description: Lista de conversaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InstagramConversation"
+
+  /v1/messages/instagram/{igsid}:
+    post:
+      operationId: instagramSendDM
+      summary: Envía DM a un IGSID específico
+      tags: [Messages, Instagram]
+      x-pattern: fire-and-forget
+      parameters:
+        - name: igsid
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                mediaUrl:
+                  type: string
+                  format: uri
+              required: [message]
+      responses:
+        "202":
+          description: DM enviado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstagramSendResponse"
+
+  # ──────────────────────────────────────────────
+  # CONVERSATIONS
+  # ──────────────────────────────────────────────
+  /v1/conversations:
+    get:
+      operationId: conversationsList
+      summary: Lista paginada de conversaciones
+      tags: [Conversations]
+      x-pattern: rpc
+      parameters:
+        - name: channel
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ConvStatus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Lista paginada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationListResponse"
+
+    post:
+      operationId: conversationsCreate
+      summary: Crear una conversación manualmente
+      tags: [Conversations]
+      x-pattern: rpc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConversationRequest"
+      responses:
+        "200":
+          description: Conversación creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+
+  /v1/conversations/{conversationId}:
+    get:
+      operationId: conversationsGet
+      summary: Detalle de una conversación
+      tags: [Conversations]
+      x-pattern: rpc
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Detalle de conversación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      operationId: conversationsUpdate
+      summary: Actualizar configuración de conversación
+      tags: [Conversations]
+      x-pattern: rpc
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateConversationRequest"
+      responses:
+        "200":
+          description: Conversación actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+
+    delete:
+      operationId: conversationsDelete
+      summary: Archiva una conversación (soft-delete)
+      tags: [Conversations]
+      x-pattern: rpc
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Archivo exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /v1/conversations/{conversationId}/messages:
+    get:
+      operationId: conversationsMessages
+      summary: Mensajes de una conversación
+      tags: [Conversations]
+      x-pattern: rpc
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Lista de mensajes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConversationMessage"
+
+  # ──────────────────────────────────────────────
+  # SCRAPING
+  # ──────────────────────────────────────────────
+  /v1/scraping/tasks:
+    post:
+      operationId: scrapingCreate
+      summary: Crear tarea de scraping
+      tags: [Scraping]
+      x-pattern: fire-and-forget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScrapingTaskRequest"
+      responses:
+        "202":
+          description: Tarea creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapingTaskCreatedResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+    get:
+      operationId: scrapingList
+      summary: Listar tareas de scraping
+      tags: [Scraping]
+      x-pattern: rpc
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista de tareas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScrapingTask"
+
+  /v1/scraping/tasks/{id}:
+    get:
+      operationId: scrapingGet
+      summary: Ver una tarea de scraping
+      tags: [Scraping]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Detalle de la tarea
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapingTask"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: scrapingDelete
+      summary: Borrar tarea de scraping
+      tags: [Scraping]
+      x-pattern: fire-and-forget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "202":
+          $ref: "#/components/schemas/AcceptedResponse"
+
+  /v1/scraping/cleanup-expired:
+    post:
+      operationId: scrapingCleanupExpired
+      summary: Cleanup manual de tareas expiradas
+      tags: [Scraping]
+      x-pattern: rpc
+      responses:
+        "200":
+          description: Resultado del cleanup
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+
+  # ──────────────────────────────────────────────
+  # EMAIL
+  # ──────────────────────────────────────────────
+  /v1/emails:
+    post:
+      operationId: emailSend
+      summary: Envía un email
+      tags: [Email]
+      x-pattern: rpc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendEmailRequest"
+      responses:
+        "200":
+          description: Email enviado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailMessage"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+    get:
+      operationId: emailList
+      summary: Lista emails enviados
+      tags: [Email]
+      x-pattern: rpc
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [inbound, outbound]
+      responses:
+        "200":
+          description: Lista de emails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmailMessage"
+
+  /v1/emails/{id}:
+    get:
+      operationId: emailGet
+      summary: Detalle de un email
+      tags: [Email]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Email con historial de eventos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailMessageDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────────────────────
+  # SCHEDULER
+  # ──────────────────────────────────────────────
+  /v1/schedules:
+    post:
+      operationId: schedulerCreate
+      summary: Crear tarea programada
+      tags: [Scheduler]
+      x-pattern: rpc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduleRequest"
+      responses:
+        "200":
+          description: Tarea creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledTask"
+
+    get:
+      operationId: schedulerList
+      summary: Lista todas las tareas programadas
+      tags: [Scheduler]
+      x-pattern: rpc
+      responses:
+        "200":
+          description: Lista de tareas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduledTask"
+
+  /v1/schedules/{id}:
+    get:
+      operationId: schedulerGet
+      summary: Detalle de una tarea programada
+      tags: [Scheduler]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Detalle de la tarea
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledTask"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      operationId: schedulerUpdate
+      summary: Actualizar tarea programada
+      tags: [Scheduler]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateScheduleRequest"
+      responses:
+        "200":
+          description: Tarea actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledTask"
+
+    delete:
+      operationId: schedulerDelete
+      summary: Borrar tarea programada
+      tags: [Scheduler]
+      x-pattern: fire-and-forget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "202":
+          $ref: "#/components/schemas/AcceptedResponse"
+
+  /v1/schedules/{id}/runs:
+    get:
+      operationId: schedulerRuns
+      summary: Historial de ejecuciones
+      tags: [Scheduler]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Historial de ejecuciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskExecution"
+
+  /v1/schedules/{id}/pause:
+    post:
+      operationId: schedulerPause
+      summary: Pausar una tarea
+      tags: [Scheduler]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Tarea pausada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledTask"
+
+  /v1/schedules/{id}/resume:
+    post:
+      operationId: schedulerResume
+      summary: Reactivar tarea pausada
+      tags: [Scheduler]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Tarea reactivada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledTask"
+
+  /v1/schedules/{id}/trigger:
+    post:
+      operationId: schedulerTrigger
+      summary: Disparar tarea ahora
+      tags: [Scheduler]
+      x-pattern: fire-and-forget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "202":
+          description: Trigger aceptado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted:
+                    type: boolean
+
+  # ──────────────────────────────────────────────
+  # AGENT
+  # ──────────────────────────────────────────────
+  /v1/agent/chat:
+    post:
+      operationId: agentChat
+      summary: Envía un mensaje al agente IA
+      tags: [Agent]
+      x-pattern: rpc
+      x-sse-events: "agent:<conversationId>"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentChatRequest"
+      responses:
+        "200":
+          description: Respuesta del agente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentChatResponse"
+
+  /v1/agent/conversations:
+    get:
+      operationId: agentConversationsList
+      summary: Lista conversaciones del agente
+      tags: [Agent]
+      x-pattern: rpc
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de conversaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentConversation"
+
+  /v1/agent/conversations/{id}:
+    get:
+      operationId: agentConversationsGet
+      summary: Detalle + historial de conversación
+      tags: [Agent]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Conversación con mensajes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentConversationDetail"
+
+    delete:
+      operationId: agentConversationsDelete
+      summary: Borra una conversación
+      tags: [Agent]
+      x-pattern: rpc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Conversación borrada
+
+  /v1/agent/memories:
+    get:
+      operationId: agentMemoriesList
+      summary: Lista memorias del usuario
+      tags: [Agent]
+      x-pattern: rpc
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista de memorias
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentMemory"
+
+  /v1/agent/memories/{userId}/{key}:
+    delete:
+      operationId: agentMemoriesDelete
+      summary: Borra una memoria específica
+      tags: [Agent]
+      x-pattern: rpc
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Memoria borrada
+
+  # ──────────────────────────────────────────────
+  # EVENTS (SSE)
+  # ──────────────────────────────────────────────
+  /v1/events:
+    get:
+      operationId: eventsSubscribe
+      summary: Conexión SSE para eventos en tiempo real
+      tags: [Events]
+      description: |
+        Stream Server-Sent Events. Una sola conexión cubre todos los servicios.
+        Los topics se separan por coma.
+      parameters:
+        - name: topics
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "scraping:*,email:*"
+      responses:
+        "200":
+          description: SSE stream (text/event-stream)
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+components:
+  responses:
+    ValidationError:
+      description: Error de validación (400)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Recurso no encontrado (404)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    # ── Common ──
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string
+        message:
+          type: string
+      required: [statusCode, timestamp, path, message]
+
+    AcceptedResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    # ── Identity ──
+    IdentityResolveRequest:
+      type: object
+      properties:
+        channel:
+          type: string
+        channelUserId:
+          type: string
+        displayName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+        trustScore:
+          type: number
+          minimum: 0
+          maximum: 1
+        metadata:
+          type: object
+      required: [channel, channelUserId]
+
+    Identity:
+      type: object
+      properties:
+        channel:
+          type: string
+        channelUserId:
+          type: string
+        displayName:
+          type: string
+        trustScore:
+          type: number
+      required: [channel, channelUserId]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        aiEnabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        identities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Identity"
+      required: [id, aiEnabled, createdAt, identities]
+
+    UserDetail:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        identities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Identity"
+        contacts:
+          type: array
+          items:
+            type: object
+        nameHistory:
+          type: array
+          items:
+            type: object
+      required: [user, identities, contacts, nameHistory]
+
+    IdentityMergeRequest:
+      type: object
+      properties:
+        primaryUserId:
+          type: string
+          format: uuid
+        secondaryUserId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+      required: [primaryUserId, secondaryUserId, reason]
+
+    IdentityReport:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        usersByChannel:
+          type: object
+          additionalProperties:
+            type: integer
+        deletedUsers:
+          type: integer
+        averageIdentitiesPerUser:
+          type: number
+      required: [totalUsers, usersByChannel, deletedUsers, averageIdentitiesPerUser]
+
+    # ── Messages ──
+    SendMessageRequest:
+      type: object
+      properties:
+        channel:
+          type: string
+          enum: [whatsapp, instagram, slack, notion, tiktok, facebook]
+        recipients:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        message:
+          type: string
+        operation:
+          type: string
+        mediaUrl:
+          type: string
+          format: uri
+        metadata:
+          type: object
+      required: [channel, recipients, message]
+
+    SendMessageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        accepted:
+          type: boolean
+        channel:
+          type: string
+        recipients:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [PENDING]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, accepted, channel, recipients, message, status, createdAt]
+
+    MessageStatus:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        channel:
+          type: string
+        recipients:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, SENT, FAILED, PARTIAL]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, channel, recipients, message, status, createdAt, updatedAt]
+
+    InstagramConversation:
+      type: object
+      properties:
+        conversationId:
+          type: string
+        igsid:
+          type: string
+        username:
+          type: string
+      required: [conversationId, igsid, username]
+
+    InstagramSendResponse:
+      type: object
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        igsid:
+          type: string
+        status:
+          type: string
+          enum: [SENT]
+        timestamp:
+          type: string
+          format: date-time
+      required: [messageId, igsid, status, timestamp]
+
+    # ── Conversations ──
+    ConvStatus:
+      type: string
+      enum: [ACTIVE, WAITING_AGENT, WITH_AGENT, ARCHIVED, CLOSED, OPEN, WAITING]
+
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        channel:
+          type: string
+        channelUserId:
+          type: string
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        topic:
+          type: string
+          nullable: true
+        aiEnabled:
+          type: boolean
+        agentAssigned:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ConvStatus"
+        messageCount:
+          type: integer
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, channel, channelUserId, aiEnabled, status, messageCount, createdAt, updatedAt]
+
+    ConversationListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Conversation"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [data, total, limit, offset]
+
+    CreateConversationRequest:
+      type: object
+      properties:
+        channel:
+          type: string
+        channelUserId:
+          type: string
+        topic:
+          type: string
+        aiEnabled:
+          type: boolean
+      required: [channel]
+
+    UpdateConversationRequest:
+      type: object
+      properties:
+        aiEnabled:
+          type: boolean
+        agentAssigned:
+          type: string
+        status:
+          $ref: "#/components/schemas/ConvStatus"
+
+    ConversationMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversationId:
+          type: string
+          format: uuid
+        direction:
+          type: string
+          enum: [INBOUND, OUTBOUND]
+        sender:
+          type: string
+          enum: [USER, BOT, AGENT, SYSTEM]
+        content:
+          type: string
+        from:
+          type: string
+        aiGenerated:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, conversationId, content, createdAt]
+
+    # ── Scraping ──
+    ScrapingSelector:
+      type: object
+      additionalProperties:
+        oneOf:
+          - type: string
+          - type: object
+            properties:
+              css:
+                type: string
+              attr:
+                type: string
+              xpath:
+                type: string
+              text:
+                type: string
+
+    ScrapingLogin:
+      type: object
+      properties:
+        usernameSelector:
+          type: string
+        passwordSelector:
+          type: string
+        submitSelector:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        sessionKey:
+          type: string
+        successSelector:
+          type: string
+
+    ScrapingFlowStep:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [navigate, click, type, wait, scroll, extract]
+        url:
+          type: string
+        selector:
+          type: string
+        text:
+          type: string
+        delayMs:
+          type: integer
+        timeoutMs:
+          type: integer
+        toBottom:
+          type: boolean
+        px:
+          type: integer
+        sleepMs:
+          type: integer
+        selectors:
+          $ref: "#/components/schemas/ScrapingSelector"
+
+    CreateScrapingTaskRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        userId:
+          type: string
+        strategy:
+          type: string
+          enum: [auto, extract, search, login_then_extract, login_then_search, custom_flow]
+        selectors:
+          $ref: "#/components/schemas/ScrapingSelector"
+        login:
+          $ref: "#/components/schemas/ScrapingLogin"
+        flow:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScrapingFlowStep"
+        search:
+          type: object
+          properties:
+            input:
+              type: string
+            submit:
+              type: string
+            query:
+              type: string
+        output:
+          type: object
+          properties:
+            targets:
+              type: array
+              items:
+                type: string
+            notion:
+              type: object
+            whatsapp:
+              type: object
+              properties:
+                to:
+                  type: string
+            email:
+              type: object
+              properties:
+                to:
+                  type: array
+                  items:
+                    type: string
+                subject:
+                  type: string
+        performance:
+          type: object
+          properties:
+            blockResources:
+              type: boolean
+            cacheTtlMs:
+              type: integer
+            timeoutMs:
+              type: integer
+        lifecycle:
+          type: object
+          properties:
+            expiresAfterMs:
+              type: integer
+            metadata:
+              type: object
+      required: [url, strategy]
+
+    ScrapingTaskCreatedResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        accepted:
+          type: boolean
+        subscribeTo:
+          type: string
+      required: [jobId, accepted, subscribeTo]
+
+    ScrapingTask:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        url:
+          type: string
+          format: uri
+        strategy:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED, RUNNING, SUCCESS, FAILED]
+        result:
+          type: object
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationMs:
+          type: integer
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, url, strategy, status, expiresAt, createdAt]
+
+    # ── Email ──
+    SendEmailRequest:
+      type: object
+      properties:
+        to:
+          type: array
+          items:
+            type: string
+            format: email
+          minItems: 1
+          maxItems: 50
+        cc:
+          type: array
+          items:
+            type: string
+            format: email
+        bcc:
+          type: array
+          items:
+            type: string
+            format: email
+        from:
+          type: string
+        replyTo:
+          type: string
+          format: email
+        subject:
+          type: string
+        html:
+          type: string
+        text:
+          type: string
+        idempotencyKey:
+          type: string
+        metadata:
+          type: object
+      required: [to, subject]
+
+    EmailMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        to:
+          type: array
+          items:
+            type: string
+        from:
+          type: string
+        subject:
+          type: string
+        provider:
+          type: string
+        providerMessageId:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED, SENT, DELIVERED, BOUNCED, COMPLAINED, FAILED, OPENED, CLICKED]
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, to, subject, status, createdAt]
+
+    EmailEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        rawPayload:
+          type: object
+      required: [id, type, occurredAt]
+
+    EmailMessageDetail:
+      allOf:
+        - $ref: "#/components/schemas/EmailMessage"
+        - type: object
+          properties:
+            deliveredAt:
+              type: string
+              format: date-time
+              nullable: true
+            openedAt:
+              type: string
+              format: date-time
+              nullable: true
+            events:
+              type: array
+              items:
+                $ref: "#/components/schemas/EmailEvent"
+
+    # ── Scheduler ──
+    CreateScheduleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        scheduleType:
+          type: string
+          enum: [CRON, INTERVAL, ONCE]
+        cronExpression:
+          type: string
+        intervalMs:
+          type: integer
+          minimum: 1000
+        runAt:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+          default: America/Bogota
+        targetRoutingKey:
+          type: string
+        payload:
+          type: object
+        maxRetries:
+          type: integer
+        retryBackoffMs:
+          type: integer
+        maxLatenessMs:
+          type: integer
+          default: 300000
+        createdBy:
+          type: string
+      required: [name, scheduleType, targetRoutingKey, payload]
+
+    UpdateScheduleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        scheduleType:
+          type: string
+          enum: [CRON, INTERVAL, ONCE]
+        cronExpression:
+          type: string
+        intervalMs:
+          type: integer
+        runAt:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+        targetRoutingKey:
+          type: string
+        payload:
+          type: object
+        maxRetries:
+          type: integer
+        retryBackoffMs:
+          type: integer
+        maxLatenessMs:
+          type: integer
+        createdBy:
+          type: string
+
+    ScheduledTask:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        scheduleType:
+          type: string
+          enum: [CRON, INTERVAL, ONCE]
+        cronExpression:
+          type: string
+          nullable: true
+        intervalMs:
+          type: integer
+          nullable: true
+        runAt:
+          type: string
+          format: date-time
+          nullable: true
+        timezone:
+          type: string
+        targetRoutingKey:
+          type: string
+        payload:
+          type: object
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED, COMPLETED, FAILED]
+        nextFireAt:
+          type: string
+          format: date-time
+          nullable: true
+        fireCount:
+          type: integer
+        failureCount:
+          type: integer
+        lastFiredAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastStatus:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, scheduleType, targetRoutingKey, payload, status, fireCount, failureCount, createdAt, updatedAt]
+
+    TaskExecution:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        scheduledFor:
+          type: string
+          format: date-time
+        firedAt:
+          type: string
+          format: date-time
+        latencyMs:
+          type: integer
+        status:
+          type: string
+          enum: [SUCCESS, FAILED, SKIPPED_LATE]
+        publishedTo:
+          type: string
+        idempotencyKey:
+          type: string
+        error:
+          type: string
+          nullable: true
+      required: [id, taskId, scheduledFor, firedAt, status, publishedTo, idempotencyKey]
+
+    # ── Agent ──
+    AgentChatRequest:
+      type: object
+      properties:
+        message:
+          type: string
+        conversationId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        enableStreaming:
+          type: boolean
+      required: [message]
+
+    AgentToolUse:
+      type: object
+      properties:
+        name:
+          type: string
+        input:
+          type: object
+        output:
+          type: object
+        error:
+          type: string
+      required: [name, input, output]
+
+    AgentChatResponse:
+      type: object
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        messageId:
+          type: string
+          format: uuid
+        finalText:
+          type: string
+        toolsUsed:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentToolUse"
+        model:
+          type: string
+        usage:
+          type: object
+          properties:
+            inputTokens:
+              type: integer
+            outputTokens:
+              type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [conversationId, messageId, finalText, createdAt]
+
+    AgentConversation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        title:
+          type: string
+        lastMessageAt:
+          type: string
+          format: date-time
+        messageCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, title, lastMessageAt, messageCount, createdAt]
+
+    AgentMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        toolUses:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentToolUse"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, role, content, createdAt]
+
+    AgentConversationDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        title:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentMessage"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, title, messages, createdAt]
+
+    AgentMemory:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        type:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [key, value, type, createdAt]
