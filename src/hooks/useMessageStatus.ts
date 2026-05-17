@@ -12,21 +12,22 @@ export type MessageStatusUpdate = {
 };
 
 export function useMessageStatus(messageId: string | null): MessageStatusUpdate | null {
-  const [status, setStatus] = useState<MessageStatusUpdate | null>(null);
+  const [statusByMessage, setStatusByMessage] = useState<
+    Record<string, MessageStatusUpdate>
+  >({});
 
   useEffect(() => {
     if (!messageId) return;
-    setStatus(null);
-
     const socket = getSocket();
     const channel = `message:${messageId}`;
-    const onUpdate = (payload: MessageStatusUpdate) => setStatus(payload);
-
+    const onUpdate = (payload: MessageStatusUpdate) => {
+      setStatusByMessage((prev) => ({ ...prev, [messageId]: payload }));
+    };
     socket.on(channel, onUpdate);
     return () => {
       socket.off(channel, onUpdate);
     };
   }, [messageId]);
 
-  return status;
+  return messageId ? (statusByMessage[messageId] ?? null) : null;
 }

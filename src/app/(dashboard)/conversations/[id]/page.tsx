@@ -182,7 +182,7 @@ export default function ConversationDetailPage() {
                     onChange={(e) => updateConv({ status: e.target.value })}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                   >
-                    {["OPEN", "ACTIVE", "WAITING", "WITH_AGENT", "CLOSED", "ARCHIVED"].map(
+                    {["OPEN", "WAITING", "CLOSED", "ARCHIVED"].map(
                       (s) => (
                         <option key={s} value={s}>
                           {s}

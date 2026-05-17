@@ -81,10 +81,6 @@ export default function MessagesPage() {
     }
   }, [channel, recipients, message, mediaUrl, operation, messagingType, messagingTag, tiktokVideoUrl, tiktokPrivacy, send]);
 
-  const handleReset = useCallback(() => {
-    setSentMessages((prev) => prev.slice(0, -1));
-  }, []);
-
   function getRecipientFormat(ch: string): string {
     const examples: Record<string, string> = {
       whatsapp: '"573205711428"',

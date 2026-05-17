@@ -35,6 +35,9 @@ export default function SchedulerPage() {
   const [description, setDescription] = useState("");
   const [scheduleType, setScheduleType] = useState("CRON");
   const [cronExpression, setCronExpression] = useState("0 9 * * *");
+  const [intervalMs, setIntervalMs] = useState("60000");
+  const [runAt, setRunAt] = useState("");
+  const [timezone, setTimezone] = useState("America/Bogota");
   const [targetRoutingKey, setTargetRoutingKey] = useState("channels.email.send");
   const [payload, setPayload] = useState("{}");
   const [creating, setCreating] = useState(false);
@@ -85,7 +88,19 @@ export default function SchedulerPage() {
         payload: parsedPayload,
       };
       if (description) body.description = description;
-      if (scheduleType === "CRON") body.cronExpression = cronExpression;
+      if (timezone) body.timezone = timezone;
+      if (scheduleType === "CRON") {
+        body.cronExpression = cronExpression;
+      } else if (scheduleType === "INTERVAL") {
+        const ms = Number(intervalMs);
+        if (!Number.isFinite(ms) || ms < 1000) {
+          throw new Error("intervalMs debe ser un número >= 1000");
+        }
+        body.intervalMs = ms;
+      } else if (scheduleType === "ONCE") {
+        if (!runAt) throw new Error("runAt es requerido para scheduleType=ONCE");
+        body.runAt = new Date(runAt).toISOString();
+      }
 
       const created = await apiFetch<ScheduledTask>("/v1/schedules", {
         method: "POST",
@@ -95,6 +110,7 @@ export default function SchedulerPage() {
       setShowCreate(false);
       setName("");
       setDescription("");
+      setRunAt("");
       setPayload("{}");
     } catch {
       // ignore
@@ -168,18 +184,24 @@ export default function SchedulerPage() {
             <Input
               label="Intervalo (ms)"
               type="number"
+              value={intervalMs}
+              onChange={(e) => setIntervalMs(e.target.value)}
               placeholder="60000 (1 minuto)"
+              min={1000}
             />
           )}
           {scheduleType === "ONCE" && (
             <Input
               label="Fecha y hora"
               type="datetime-local"
+              value={runAt}
+              onChange={(e) => setRunAt(e.target.value)}
             />
           )}
           <Input
             label="Zona horaria"
-            value="America/Bogota"
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
             placeholder="America/Bogota"
           />
           <Input

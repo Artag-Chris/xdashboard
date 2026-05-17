@@ -113,6 +113,8 @@ export default function IdentityPage() {
               { value: "instagram", label: "Instagram" },
               { value: "slack", label: "Slack" },
               { value: "facebook", label: "Facebook" },
+              { value: "notion", label: "Notion" },
+              { value: "tiktok", label: "TikTok" },
             ]}
           />
           <Button variant="secondary" onClick={() => setShowResolve(true)}>

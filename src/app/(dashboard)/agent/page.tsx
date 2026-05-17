@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TextArea } from "@/components/ui/input";
+import { Input, TextArea } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiFetch } from "@/lib/api/client";
 import { useSSE } from "@/lib/sse/use-sse";
@@ -33,6 +33,7 @@ type AgentMemory = {
 };
 
 export default function AgentPage() {
+  const [userId, setUserId] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -48,10 +49,21 @@ export default function AgentPage() {
   }, [messages]);
 
   useEffect(() => {
-    apiFetch<AgentConversation[]>("/v1/agent/conversations")
-      .then(setConversations)
-      .catch(() => setConversations([]));
-  }, []);
+    if (!userId) return;
+    let cancelled = false;
+    apiFetch<AgentConversation[]>(
+      `/v1/agent/conversations?userId=${encodeURIComponent(userId)}`
+    )
+      .then((data) => {
+        if (!cancelled) setConversations(data);
+      })
+      .catch(() => {
+        if (!cancelled) setConversations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useSSE({
     topics: conversationId ? [`agent:${conversationId}` as const] : [],
@@ -120,13 +132,15 @@ export default function AgentPage() {
     setSending(true);
 
     try {
+      const body: Record<string, unknown> = {
+        message: input,
+        enableStreaming: true,
+      };
+      if (conversationId) body.conversationId = conversationId;
+      if (userId) body.userId = userId;
       await apiFetch(`/v1/agent/chat`, {
         method: "POST",
-        body: JSON.stringify({
-          message: input,
-          conversationId,
-          enableStreaming: true,
-        }),
+        body: JSON.stringify(body),
       });
     } catch {
       setMessages((prev) => [
@@ -165,9 +179,11 @@ export default function AgentPage() {
 
   async function loadMemories() {
     setShowMemories(!showMemories);
-    if (!showMemories) {
+    if (!showMemories && userId) {
       try {
-        const mems = await apiFetch<AgentMemory[]>("/v1/agent/memories");
+        const mems = await apiFetch<AgentMemory[]>(
+          `/v1/agent/memories?userId=${encodeURIComponent(userId)}`
+        );
         setMemories(mems);
       } catch {
         setMemories([]);
@@ -175,10 +191,13 @@ export default function AgentPage() {
     }
   }
 
-  async function deleteMemory(key: string, userId?: string) {
+  async function deleteMemory(key: string) {
     if (!userId) return;
     try {
-      await apiFetch(`/v1/agent/memories/${userId}/${key}`, { method: "DELETE" });
+      await apiFetch(
+        `/v1/agent/memories/${encodeURIComponent(userId)}/${encodeURIComponent(key)}`,
+        { method: "DELETE" }
+      );
       setMemories((prev) => prev.filter((m) => m.key !== key));
     } catch {
       // ignore
@@ -187,17 +206,31 @@ export default function AgentPage() {
 
   return (
     <div className="max-w-5xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Agente IA</h1>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between mb-6 gap-4">
+        <h1 className="text-2xl font-bold whitespace-nowrap">Agente IA</h1>
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <Input
+            value={userId}
+            onChange={(e) => {
+              const v = e.target.value;
+              setUserId(v);
+              if (!v) {
+                setConversations([]);
+                setMemories([]);
+              }
+            }}
+            placeholder="User ID (requerido para historial/memorias)"
+            className="max-w-xs"
+          />
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setShowHistory(!showHistory)}
+            disabled={!userId}
           >
             {showHistory ? "Ocultar historial" : "Historial"}
           </Button>
-          <Button variant="ghost" size="sm" onClick={loadMemories}>
+          <Button variant="ghost" size="sm" onClick={loadMemories} disabled={!userId}>
             {showMemories ? "Ocultar memorias" : "Memorias"}
           </Button>
         </div>
@@ -334,7 +367,7 @@ export default function AgentPage() {
                     <p className="text-sm font-medium text-gray-900">{m.key}</p>
                     <p className="text-xs text-gray-500">{m.value} · tipo: {m.type}</p>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => deleteMemory(m.key, "user-current")}>
+                  <Button size="sm" variant="ghost" onClick={() => deleteMemory(m.key)}>
                     Olvidar
                   </Button>
                 </div>

@@ -36,10 +36,8 @@ const CHANNELS = [
 
 const STATUSES = [
   { value: "", label: "Todos los estados" },
-  { value: "ACTIVE", label: "Activas" },
   { value: "OPEN", label: "Abiertas" },
   { value: "WAITING", label: "Esperando" },
-  { value: "WITH_AGENT", label: "Con agente" },
   { value: "CLOSED", label: "Cerradas" },
   { value: "ARCHIVED", label: "Archivadas" },
 ];
