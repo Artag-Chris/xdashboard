@@ -3,14 +3,9 @@
 import { useEffect, useState } from "react";
 import { StatCard, Card } from "@/components/ui/card";
 import { Badge, ChannelBadge } from "@/components/ui/badge";
-import { apiFetch } from "@/lib/api/client";
-
-type IdentityReport = {
-  totalUsers: number;
-  usersByChannel: Record<string, number>;
-  deletedUsers: number;
-  averageIdentitiesPerUser: number;
-};
+import { useGateway } from "@/lib/microservices/react/context";
+import { useIdentityReport } from "@/lib/microservices/react/hooks";
+import type { IdentityReport, RecentConversation } from "@/lib/microservices/types";
 
 type DashboardStats = {
   conversations: number;
@@ -21,44 +16,29 @@ type DashboardStats = {
   totalUsers: number;
 };
 
-type RecentConversation = {
-  id: string;
-  channel: string;
-  channelUserId: string;
-  topic: string | null;
-  status: string;
-  lastMessageAt: string | null;
-};
-
 export default function DashboardPage() {
+  const { api } = useGateway();
   const [stats, setStats] = useState<DashboardStats>({
-    conversations: 0,
-    messagesSent: 0,
-    emailsSent: 0,
-    scrapingJobs: 0,
-    activeSchedules: 0,
-    totalUsers: 0,
+    conversations: 0, messagesSent: 0, emailsSent: 0,
+    scrapingJobs: 0, activeSchedules: 0, totalUsers: 0,
   });
-  const [report, setReport] = useState<IdentityReport | null>(null);
   const [recentConversations, setRecentConversations] = useState<RecentConversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const { report } = useIdentityReport();
 
   useEffect(() => {
     async function load() {
       try {
-        const [convos, identityReport] = await Promise.allSettled([
-          apiFetch<{ data: RecentConversation[]; total: number }>(
-            "/v1/conversations?limit=5"
-          ),
-          apiFetch<IdentityReport>("/v1/identity/report"),
+        const [convosRes, identityReport] = await Promise.allSettled([
+          api.get<{ data: RecentConversation[] }>("/v1/query/conversations?limit=5"),
+          api.get<IdentityReport>("/v1/identity/report"),
         ]);
-
-        if (convos.status === "fulfilled") {
-          setRecentConversations(convos.value.data);
-          setStats((s) => ({ ...s, conversations: convos.value.total }));
+        if (convosRes.status === "fulfilled") {
+          const convos = convosRes.value.data ?? [];
+          setRecentConversations(convos);
+          setStats((s) => ({ ...s, conversations: convos.length }));
         }
         if (identityReport.status === "fulfilled") {
-          setReport(identityReport.value);
           setStats((s) => ({ ...s, totalUsers: identityReport.value.totalUsers }));
         }
       } catch {
@@ -67,7 +47,7 @@ export default function DashboardPage() {
       }
     }
     load();
-  }, []);
+  }, [api]);
 
   return (
     <div>
@@ -99,10 +79,7 @@ export default function DashboardPage() {
               <p className="text-xs text-gray-500 mb-2">Por canal</p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(report.usersByChannel).map(([ch, n]) => (
-                  <div
-                    key={ch}
-                    className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs"
-                  >
+                  <div key={ch} className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs">
                     <ChannelBadge channel={ch} />
                     <span className="font-medium text-gray-700">{n}</span>
                   </div>
@@ -132,9 +109,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-3">
                     <ChannelBadge channel={c.channel} />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {c.topic ?? "Sin tema"}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900">{c.topic ?? "Sin tema"}</p>
                       <p className="text-xs text-gray-500">{c.channelUserId}</p>
                     </div>
                   </div>
@@ -160,15 +135,7 @@ export default function DashboardPage() {
   );
 }
 
-function QuickAction({
-  href,
-  icon,
-  label,
-}: {
-  href: string;
-  icon: string;
-  label: string;
-}) {
+function QuickAction({ href, icon, label }: { href: string; icon: string; label: string }) {
   return (
     <a
       href={href}

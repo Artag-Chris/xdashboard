@@ -1,15 +1,8 @@
 import Link from "next/link";
+import { getSidebarItems } from "@/lib/microservices/extensions/registry";
+import type { SidebarItem } from "@/lib/microservices/extensions/types";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: "📊" },
-  { href: "/conversations", label: "Inbox", icon: "💬" },
-  { href: "/messages", label: "Mensajes", icon: "✉️" },
-  { href: "/emails", label: "Emails", icon: "📧" },
-  { href: "/scraping", label: "Scraping", icon: "🕷️" },
-  { href: "/scheduler", label: "Tareas", icon: "⏰" },
-  { href: "/agent", label: "Agente IA", icon: "🤖" },
-  { href: "/identity", label: "Identidades", icon: "👤" },
-];
+const SIDEBAR_ITEMS: SidebarItem[] = getSidebarItems();
 
 export default function DashboardLayout({
   children,
@@ -21,7 +14,7 @@ export default function DashboardLayout({
       <aside className="w-64 border-r border-gray-200 bg-gray-50 p-4 flex flex-col gap-2">
         <div className="text-lg font-bold mb-4 px-3">Dashboard</div>
         <nav className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
+          {SIDEBAR_ITEMS.map((item) => (
             <Link
               key={item.href}
               href={item.href}

@@ -9,14 +9,14 @@ import { apiFetch } from "@/lib/api/client";
 
 type ScrapingTask = {
   id: string;
+  userId: string | null;
   url: string;
-  strategy: string;
+  title: string | null;
   status: string;
-  result: Record<string, unknown> | null;
-  startedAt: string | null;
-  completedAt: string | null;
+  notionPageUrl: string | null;
   durationMs: number | null;
-  createdAt: string;
+  error: string | null;
+  occurredAt: string;
 };
 
 export default function ScrapingDetailPage() {
@@ -26,7 +26,7 @@ export default function ScrapingDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch<ScrapingTask>(`/v1/scraping/tasks/${id}`)
+    apiFetch<ScrapingTask>(`/v1/query/scraping-tasks/${id}`)
       .then(setTask)
       .catch(() => setTask(null))
       .finally(() => setLoading(false));
@@ -56,50 +56,42 @@ export default function ScrapingDetailPage() {
       <Card>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold truncate">{task.url}</h2>
+            <h2 className="text-lg font-semibold truncate">{task.title ?? task.url}</h2>
             <Badge status={task.status} />
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-gray-500">Estrategia</p>
-              <p className="font-medium">{task.strategy}</p>
+              <p className="text-gray-500">URL</p>
+              <p className="font-medium truncate">{task.url}</p>
             </div>
             {task.durationMs && (
               <div>
                 <p className="text-gray-500">Duración</p>
-                <p className="font-medium">
-                  {(task.durationMs / 1000).toFixed(2)}s
-                </p>
+                <p className="font-medium">{(task.durationMs / 1000).toFixed(2)}s</p>
               </div>
             )}
-            {task.startedAt && (
+            {task.notionPageUrl && (
               <div>
-                <p className="text-gray-500">Iniciado</p>
-                <p className="font-medium">
-                  {new Date(task.startedAt).toLocaleString()}
-                </p>
+                <p className="text-gray-500">Página en Notion</p>
+                <a href={task.notionPageUrl} target="_blank" className="font-medium text-blue-600 hover:underline truncate block">
+                  {task.notionPageUrl}
+                </a>
               </div>
             )}
-            {task.completedAt && (
+            {task.error && (
               <div>
-                <p className="text-gray-500">Completado</p>
-                <p className="font-medium">
-                  {new Date(task.completedAt).toLocaleString()}
-                </p>
+                <p className="text-gray-500">Error</p>
+                <p className="font-medium text-red-600">{task.error}</p>
               </div>
             )}
+            <div>
+              <p className="text-gray-500">Ocurrió</p>
+              <p className="font-medium">{new Date(task.occurredAt).toLocaleString()}</p>
+            </div>
           </div>
         </div>
       </Card>
-
-      {task.result && (
-        <Card title="Resultado" className="mt-4">
-          <pre className="text-sm bg-gray-50 rounded-lg p-4 overflow-auto max-h-96">
-            {JSON.stringify(task.result, null, 2)}
-          </pre>
-        </Card>
-      )}
     </div>
   );
 }

@@ -9,23 +9,25 @@ import { apiFetch } from "@/lib/api/client";
 
 type EmailDetail = {
   id: string;
-  to: string[];
-  from: string;
+  direction: string;
+  domain: string;
   subject: string;
   status: string;
+  toAddresses: string[];
+  toAlias?: string;
+  fromAddress: string;
+  fromName?: string;
   provider?: string;
   providerMessageId?: string;
-  direction?: string;
-  domain?: string;
-  toAlias?: string;
-  fromAddress?: string;
-  fromName?: string;
+  textBody?: string;
+  htmlBody?: string;
   headers?: Record<string, string>;
   attachments?: { name: string; contentType: string; size: number }[];
   sentAt: string | null;
   deliveredAt: string | null;
   openedAt: string | null;
-  events: { id: string; type: string; occurredAt: string; rawPayload?: Record<string, unknown> }[];
+  userId: string | null;
+  occurredAt: string;
 };
 
 export default function EmailDetailPage() {
@@ -35,7 +37,7 @@ export default function EmailDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch<EmailDetail>(`/v1/emails/${id}`)
+    apiFetch<EmailDetail>(`/v1/query/emails/${id}`)
       .then(setEmail)
       .catch(() => setEmail(null))
       .finally(() => setLoading(false));
@@ -66,14 +68,18 @@ export default function EmailDetailPage() {
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-gray-500">Para</p>
-              <p className="font-medium">{email.to?.join(", ") ?? email.toAlias ?? "—"}</p>
+              <p className="text-gray-500">{email.direction === "inbound" ? "De" : "Para"}</p>
+              <p className="font-medium">
+                {email.direction === "inbound"
+                  ? email.fromName
+                    ? `${email.fromName} <${email.fromAddress}>`
+                    : email.fromAddress
+                  : email.toAddresses.join(", ")}
+              </p>
             </div>
             <div>
-              <p className="text-gray-500">{email.direction === "inbound" ? "De" : "De"}</p>
-              <p className="font-medium">
-                {email.fromAddress ? `${email.fromName ?? ""} <${email.fromAddress}>`.trim() : email.from}
-              </p>
+              <p className="text-gray-500">Asunto</p>
+              <p className="font-medium">{email.subject}</p>
             </div>
             {email.provider && (
               <div>
@@ -128,22 +134,16 @@ export default function EmailDetailPage() {
         </Card>
       )}
 
-      {email.events.length > 0 && (
-        <Card title="Eventos" className="mt-4">
-          <div className="divide-y divide-gray-100">
-            {email.events.map((ev) => (
-              <div key={ev.id} className="flex items-center justify-between py-2">
-                <div className="flex items-center gap-2">
-                  <EventIcon type={ev.type} />
-                  <span className="text-sm text-gray-700">{ev.type}</span>
-                </div>
-                <span className="text-xs text-gray-400">{new Date(ev.occurredAt).toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
+      {email.textBody && (
+        <Card title="Contenido texto" className="mt-4">
+          <pre className="text-sm whitespace-pre-wrap text-gray-700">{email.textBody}</pre>
         </Card>
       )}
-
+      {email.htmlBody && (
+        <Card title="Contenido HTML" className="mt-4">
+          <pre className="text-xs bg-gray-50 rounded-lg p-4 overflow-auto max-h-96">{email.htmlBody}</pre>
+        </Card>
+      )}
       {email.headers && (
         <Card title="Headers" className="mt-4">
           <pre className="text-xs bg-gray-50 rounded-lg p-4 overflow-auto max-h-48">
@@ -153,13 +153,4 @@ export default function EmailDetailPage() {
       )}
     </div>
   );
-}
-
-function EventIcon({ type }: { type: string }) {
-  if (type.includes("delivered")) return <span className="text-green-500">✓</span>;
-  if (type.includes("bounced") || type.includes("failed")) return <span className="text-red-500">✗</span>;
-  if (type.includes("opened")) return <span className="text-blue-500">👁</span>;
-  if (type.includes("clicked")) return <span className="text-blue-500">🖱</span>;
-  if (type.includes("complained")) return <span className="text-red-500">⚠</span>;
-  return <span className="text-gray-400">•</span>;
 }

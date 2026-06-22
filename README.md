@@ -4,6 +4,20 @@ Dashboard de gestión multicanal. Next.js 16 App Router + TypeScript + Tailwind 
 
 Consume exclusivamente el gateway API (`/api/v1/*`). No llama directo a microservicios.
 
+## Arquitectura CQRS
+
+El backend separa lecturas de escrituras. Todas las **lecturas (GETs)** van a `/v1/query/*` → sync-service → MongoDB (read model). Las **escrituras (POST/PUT/PATCH/DELETE)** van a endpoints por servicio (`/v1/conversations/*`, `/v1/identity/*`, `/v1/messages/send`, etc.).
+
+**Excepciones** que NO pasan por el read model:
+- `GET /v1/agent/conversations/:id` (tool_use blocks)
+- `GET /v1/agent/memories`
+- `GET /v1/identity/report` (aggregate roll-up)
+- `GET /v1/scheduler/*` (BullMQ jobs)
+- `GET /v1/messages/:id` (audit de envíos)
+- `GET /v1/emails/domains` (config)
+
+Ver `docs/api/query.md` para la referencia completa.
+
 ---
 
 ## Stack

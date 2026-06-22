@@ -21,50 +21,57 @@ No test runner is configured.
 
 ## Architecture
 
+### CQRS — Reads vs Writes
+
+The backend uses **CQRS** — reads and writes go to different endpoints:
+
+- **Reads (GETs):** all go to `/v1/query/*` → sync-service → MongoDB (read model). Exceptions:
+  - `GET /v1/agent/conversations/:id` (agent detail with tool_use blocks)
+  - `GET /v1/agent/memories` (agent memories)
+  - `GET /v1/identity/report` (aggregate roll-up, not in read model)
+  - `GET /v1/scheduler/*` (BullMQ jobs)
+  - `GET /v1/messages/:id` (message audit)
+  - `GET /v1/emails/domains` (config)
+
+- **Writes (POST/PUT/PATCH/DELETE):** go to per-service endpoints (`/v1/conversations/*`, `/v1/identity/*`, `/v1/messages/send`, `/v1/emails`, `/v1/scraping/*`, `/v1/agent/*`)
+
+See `docs/api/query.md` for the complete query API reference.
+
 ### Gateway-only API boundary
 
-The frontend **never** calls microservices directly — only the gateway. There are two paths to that gateway depending on environment:
-
-1. **Dev (default):** `next.config.ts` rewrites `/api/:path*` → `${API_GATEWAY_URL ?? "http://localhost:3000"}/api/:path*`. Client code calls relative `/api/...`.
-2. **Override:** if `NEXT_PUBLIC_API_URL` is set (see `.env.local`, currently `https://micro.artagdev.com.co`), client code in `src/lib/api/client.ts` and `src/lib/sse/use-sse.ts` uses it as the base URL directly, bypassing the Next rewrite.
-
-When debugging "wrong host" issues, check both `NEXT_PUBLIC_API_URL` and `API_GATEWAY_URL` — they control different layers.
+The frontend **never** calls microservices directly — only the gateway. Two paths:
+1. **Dev (default):** `next.config.ts` rewrites `/api/:path*` → gateway.
+2. **Override:** if `NEXT_PUBLIC_API_URL` is set, client code uses it as base URL directly.
 
 ### API typing flow
 
-`spec/openapi.yaml` → `openapi-typescript` → `src/lib/api/schema.d.ts` → consumed by `openapi-fetch` (`apiClient`) in [src/lib/api/client.ts](src/lib/api/client.ts). The same file also exports `apiFetch<T>()`, an untyped escape hatch that handles `202 Accepted` → `{ accepted: true }` (the gateway uses fire-and-forget for many writes, marked `x-pattern: fire-and-forget` in the spec).
+`spec/openapi.yaml` → `openapi-typescript` → `src/lib/api/schema.d.ts` → consumed by `openapi-fetch` (`apiClient`) and `apiFetch<T>()`. The `apiFetch` wrapper handles `202 Accepted` → `{ accepted: true }` for fire-and-forget writes.
 
-**Do not hand-edit `schema.d.ts`.** Edit the YAML and run `generate:api`.
+### Real-time
 
-### Real-time events (SSE)
-
-The gateway exposes `GET /v1/events?topics=...` as a Server-Sent Events stream. [src/lib/sse/use-sse.ts](src/lib/sse/use-sse.ts) is the only consumer; [src/lib/sse/types.ts](src/lib/sse/types.ts) is the authoritative event-name → payload map (`SSEEventMap`). When adding a new event type:
-
-1. Add the key + payload to `SSEEventMap`.
-2. Add a matching `es.addEventListener(...)` call inside the `useEffect` in `use-sse.ts` — the hook does **not** auto-subscribe; each event name is wired explicitly.
-
-Topic strings are namespaced (`scraping:*`, `email:*`, `agent:*`, `scheduler:*`, or `*`). Event name casing is inconsistent on purpose to match the gateway (`scraping:queued` uses `:`, `email.sent` uses `.`) — don't "fix" it without checking the backend contract.
+- **Socket.IO** (`src/lib/socket.ts`): message status updates via `message:<id>` channel.
+- **SSE** (`src/lib/sse/use-sse.ts`): scraping, email, scheduler, agent events via `GET /v1/events?topics=...`.
 
 ### Routing layout
 
-- `src/app/layout.tsx` — root html/body, Geist fonts, `min-h-full flex flex-col`.
 - `src/app/page.tsx` — redirects to `/conversations`.
-- `src/app/(dashboard)/` — route group with the shared sidebar layout ([src/app/(dashboard)/layout.tsx](src/app/(dashboard)/layout.tsx)). All authenticated pages live here: `conversations/`, `messages/`, `emails/`, `scraping/`, `scheduler/`, `agent/`, `identity/`. Detail routes use `[id]/` segments.
-- The route group `(dashboard)` is **not** part of the URL — the dashboard index page is reached via `/` (which redirects) and links from the sidebar.
-
-Pages that read live data are `"use client"` and fetch with `apiFetch` directly inside `useEffect` (no SWR / React Query in the project).
+- `src/app/(dashboard)/` — route group with sidebar layout. All pages: `conversations/`, `messages/`, `emails/`, `scraping/`, `scheduler/`, `agent/`, `identity/`.
 
 ### Components
 
-- `src/components/ui/` — primitive UI kit (`badge`, `button`, `card`, `empty-state`, `input`, `modal`, `table`). Use these instead of rolling new primitives.
-- `src/components/channels/` and `src/components/forms/` exist as namespaces for channel-specific renderers and form composites.
+- `src/components/ui/` — primitive UI kit (`badge`, `button`, `card`, `input`, `modal`, `table`).
+- `src/components/SendWhatsappForm.tsx` — reusable form with `useSendMessage` + `useMessageStatus`.
 
-### Path alias
+### Hooks
 
-`@/*` → `./src/*` (configured in `tsconfig.json`). Prefer this over relative paths that climb out of `src/app/`.
+- `useSendMessage` — FSM (idle → sending → queued/error) for sending messages.
+- `useMessageStatus` — Socket.IO listener for `message:<id>` updates.
+- `useEventsStream` — SSE listener with `(topics[], handlers)` API.
+- `useSSE` — typed SSE hook with event-name-to-payload mapping.
 
 ## Project conventions
 
-- Strings in UI copy are Spanish (`Conversaciones`, `Mensajes`, `Tareas`, etc.) — keep new copy consistent.
-- Sidebar uses inline emoji icons (no icon library is installed); follow the same pattern for new nav items.
-- `apiFetch` throws the parsed JSON error object (not an `Error`), so `catch (e)` blocks see `{ statusCode, message }` shaped values from the gateway.
+- UI copy is **Spanish**.
+- Sidebar uses inline emoji icons (no icon library).
+- `apiFetch` throws parsed JSON error `{ statusCode, message }`.
+- `@/*` → `./src/*` (path alias).
