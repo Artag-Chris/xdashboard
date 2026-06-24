@@ -5,14 +5,13 @@ import type {
   UnifiedMessage,
   UnifiedEmail,
   ScrapingTaskSummary,
-  PaginatedResponse,
   SearchResults,
 } from "../types";
 
 export class QueryService implements IQueryService {
   constructor(private api: IApiClient) {}
 
-  listUsers(params?: { limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedUser>> {
+  listUsers(params?: { limit?: number }): Promise<UnifiedUser[]> {
     return this.api.get("/v1/query/users", params);
   }
 
@@ -20,19 +19,19 @@ export class QueryService implements IQueryService {
     return this.api.get(`/v1/query/users/${encodeURIComponent(userId)}`);
   }
 
-  getUserConversations(userId: string, params?: { channel?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedConversation>> {
+  getUserConversations(userId: string, params?: { channel?: string; limit?: number }): Promise<UnifiedConversation[]> {
     return this.api.get(`/v1/query/users/${encodeURIComponent(userId)}/conversations`, params);
   }
 
-  getUserScrapingTasks(userId: string, params?: { limit?: number; cursor?: string }): Promise<PaginatedResponse<ScrapingTaskSummary>> {
+  getUserScrapingTasks(userId: string, params?: { limit?: number }): Promise<ScrapingTaskSummary[]> {
     return this.api.get(`/v1/query/users/${encodeURIComponent(userId)}/scraping-tasks`, params);
   }
 
-  getUserEmails(userId: string, params?: { direction?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedEmail>> {
+  getUserEmails(userId: string, params?: { direction?: string; limit?: number }): Promise<UnifiedEmail[]> {
     return this.api.get(`/v1/query/users/${encodeURIComponent(userId)}/emails`, params);
   }
 
-  listConversations(params?: { channel?: string; status?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedConversation>> {
+  listConversations(params?: { channel?: string; status?: string; limit?: number }): Promise<UnifiedConversation[]> {
     return this.api.get("/v1/query/conversations", params);
   }
 
@@ -40,11 +39,11 @@ export class QueryService implements IQueryService {
     return this.api.get(`/v1/query/conversations/${encodeURIComponent(id)}`);
   }
 
-  getConversationMessages(id: string, params?: { limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedMessage>> {
+  getConversationMessages(id: string, params?: { limit?: number }): Promise<UnifiedMessage[]> {
     return this.api.get(`/v1/query/conversations/${encodeURIComponent(id)}/messages`, params);
   }
 
-  listScrapingTasks(params?: { status?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<ScrapingTaskSummary>> {
+  listScrapingTasks(params?: { status?: string; limit?: number }): Promise<ScrapingTaskSummary[]> {
     return this.api.get("/v1/query/scraping-tasks", params);
   }
 
@@ -52,7 +51,7 @@ export class QueryService implements IQueryService {
     return this.api.get(`/v1/query/scraping-tasks/${encodeURIComponent(id)}`);
   }
 
-  listEmails(params?: { direction?: string; domain?: string; status?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedEmail>> {
+  listEmails(params?: { direction?: string; domain?: string; status?: string; limit?: number }): Promise<UnifiedEmail[]> {
     return this.api.get("/v1/query/emails", params);
   }
 

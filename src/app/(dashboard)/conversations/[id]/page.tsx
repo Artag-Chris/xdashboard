@@ -20,20 +20,20 @@ export default function ConversationDetailPage() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      try {
-        const [convData, msgsData] = await Promise.all([
-          api.get<UnifiedConversation>(`/v1/query/conversations/${encodeURIComponent(id)}`),
-          api.get<{ data: UnifiedMessage[] }>(`/v1/query/conversations/${encodeURIComponent(id)}/messages`),
-        ]);
-        if (cancelled) return;
-        setConv(convData);
-        setMessages(msgsData.data ?? []);
-      } catch {
-        if (cancelled) return;
+      const [convResult, msgsResult] = await Promise.allSettled([
+        api.get<UnifiedConversation>(`/v1/query/conversations/${encodeURIComponent(id)}`),
+        api.get<UnifiedMessage[]>(`/v1/query/conversations/${encodeURIComponent(id)}/messages`),
+      ]);
+      if (cancelled) return;
+      if (convResult.status === "fulfilled") {
+        setConv(convResult.value);
+      } else {
         setConv(null);
-      } finally {
-        if (!cancelled) setLoading(false);
       }
+      if (msgsResult.status === "fulfilled") {
+        setMessages(msgsResult.value);
+      }
+      setLoading(false);
     }
     load();
     return () => { cancelled = true; };
@@ -106,7 +106,7 @@ export default function ConversationDetailPage() {
                 }`}>
                   <p className="text-sm text-gray-900">{msg.content}</p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {msg.sender} · {new Date(msg.occurredAt).toLocaleString()}
+                    {(msg.metadata?.senderName as string) ?? (msg.sender === 'BOT' ? 'Asistente' : 'Usuario')} · {new Date(msg.occurredAt).toLocaleString()}
                   </p>
                 </div>
               </div>

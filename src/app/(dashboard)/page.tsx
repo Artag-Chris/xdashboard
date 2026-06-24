@@ -30,11 +30,11 @@ export default function DashboardPage() {
     async function load() {
       try {
         const [convosRes, identityReport] = await Promise.allSettled([
-          api.get<{ data: RecentConversation[] }>("/v1/query/conversations?limit=5"),
+          api.get<RecentConversation[]>("/v1/query/conversations?limit=5"),
           api.get<IdentityReport>("/v1/identity/report"),
         ]);
         if (convosRes.status === "fulfilled") {
-          const convos = convosRes.value.data ?? [];
+          const convos = convosRes.value ?? [];
           setRecentConversations(convos);
           setStats((s) => ({ ...s, conversations: convos.length }));
         }

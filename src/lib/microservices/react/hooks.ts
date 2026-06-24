@@ -15,42 +15,42 @@ import type {
   UnifiedMessage,
   UnifiedEmail,
   ScrapingTaskSummary,
-  PaginatedResponse,
 } from "../types";
 
 // ── Cursor pagination hook ──
 
 function useCursorPaginated<T>(
-  fetcher: (cursor?: string) => Promise<PaginatedResponse<T>>,
+  fetcher: () => Promise<T[]>,
 ) {
   const [data, setData] = useState<T[]>([]);
-  const [cursor, setCursor] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetcher(cursor);
-      setData((prev) => [...prev, ...res.data]);
-      setCursor(res.cursor);
-      if (!res.cursor || res.data.length === 0) setHasMore(false);
+      const res = await fetcher();
+      setData(res);
+      setHasMore(false);
     } catch (e) {
       setError(e as Error);
     } finally {
       setLoading(false);
     }
-  }, [cursor, fetcher]);
+  }, [fetcher]);
 
   const refresh = useCallback(async () => {
-    setData([]);
-    setCursor(undefined);
-    setHasMore(true);
-    const res = await fetcher(undefined);
-    setData(res.data);
-    setCursor(res.cursor);
-    if (!res.cursor) setHasMore(false);
+    setLoading(true);
+    try {
+      const res = await fetcher();
+      setData(res);
+      setHasMore(false);
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setLoading(false);
+    }
   }, [fetcher]);
 
   return { data, loading, error, hasMore, loadMore: load, refresh };
@@ -60,8 +60,8 @@ function useCursorPaginated<T>(
 
 export function useUsers(params?: { limit?: number }) {
   const { api } = useGateway();
-  return useCursorPaginated((cursor) =>
-    api.get<PaginatedResponse<UnifiedUser>>("/v1/query/users", { ...params, cursor })
+  return useCursorPaginated(() =>
+    api.get<UnifiedUser[]>("/v1/query/users", params)
   );
 }
 
@@ -85,47 +85,47 @@ export function useUser(userId: string | undefined) {
 
 export function useConversations(params?: { channel?: string; status?: string; limit?: number }) {
   const { api } = useGateway();
-  return useCursorPaginated((cursor) =>
-    api.get<PaginatedResponse<UnifiedConversation>>("/v1/query/conversations", { ...params, cursor })
+  return useCursorPaginated(() =>
+    api.get<UnifiedConversation[]>("/v1/query/conversations", params)
   );
 }
 
 export function useConversationMessages(conversationId: string | undefined, params?: { limit?: number }) {
   const { api } = useGateway();
-  return useCursorPaginated((cursor) =>
+  return useCursorPaginated(() =>
     conversationId
-      ? api.get<PaginatedResponse<UnifiedMessage>>(
+      ? api.get<UnifiedMessage[]>(
           `/v1/query/conversations/${encodeURIComponent(conversationId)}/messages`,
-          { ...params, cursor }
+          params
         )
-      : Promise.resolve({ data: [] })
+      : Promise.resolve([])
   );
 }
 
 export function useEmails(params?: { direction?: string; domain?: string; status?: string; limit?: number }) {
   const { api } = useGateway();
-  return useCursorPaginated((cursor) =>
-    api.get<PaginatedResponse<UnifiedEmail>>("/v1/query/emails", { ...params, cursor })
+  return useCursorPaginated(() =>
+    api.get<UnifiedEmail[]>("/v1/query/emails", params)
   );
 }
 
 export function useScrapingTasks(params?: { status?: string; limit?: number }) {
   const { api } = useGateway();
-  return useCursorPaginated((cursor) =>
-    api.get<PaginatedResponse<ScrapingTaskSummary>>("/v1/query/scraping-tasks", { ...params, cursor })
+  return useCursorPaginated(() =>
+    api.get<ScrapingTaskSummary[]>("/v1/query/scraping-tasks", params)
   );
 }
 
 export function useSearch() {
   const { api } = useGateway();
-  const [results, setResults] = useState<PaginatedResponse<UnifiedMessage> | null>(null);
+  const [results, setResults] = useState<UnifiedMessage[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   const search = useCallback(async (q: string) => {
     if (q.length < 2) return;
     setLoading(true);
     try {
-      const res = await api.get<PaginatedResponse<UnifiedMessage>>("/v1/query/search", { q });
+      const res = await api.get<UnifiedMessage[]>("/v1/query/search", { q });
       setResults(res);
     } finally {
       setLoading(false);
@@ -149,11 +149,11 @@ export function useDashboardStats() {
     async function load() {
       try {
         const [convosRes, identityReport] = await Promise.allSettled([
-          api.get<PaginatedResponse<RecentConversation>>("/v1/query/conversations?limit=5"),
+          api.get<RecentConversation[]>("/v1/query/conversations?limit=5"),
           identity.getReport(),
         ]);
         if (convosRes.status === "fulfilled") {
-          setStats((s) => ({ ...s, conversations: convosRes.value.data.length }));
+          setStats((s) => ({ ...s, conversations: convosRes.value.length }));
         }
         if (identityReport.status === "fulfilled") {
           setStats((s) => ({ ...s, totalUsers: identityReport.value.totalUsers }));

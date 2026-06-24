@@ -38,17 +38,17 @@ export interface IApiClient {
 }
 
 export interface IQueryService {
-  listUsers(params?: { limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedUser>>;
+  listUsers(params?: { limit?: number }): Promise<UnifiedUser[]>;
   getUser(userId: string): Promise<UnifiedUser>;
-  getUserConversations(userId: string, params?: { channel?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedConversation>>;
-  getUserScrapingTasks(userId: string, params?: { limit?: number; cursor?: string }): Promise<PaginatedResponse<ScrapingTaskSummary>>;
-  getUserEmails(userId: string, params?: { direction?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedEmail>>;
-  listConversations(params?: { channel?: string; status?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedConversation>>;
+  getUserConversations(userId: string, params?: { channel?: string; limit?: number }): Promise<UnifiedConversation[]>;
+  getUserScrapingTasks(userId: string, params?: { limit?: number }): Promise<ScrapingTaskSummary[]>;
+  getUserEmails(userId: string, params?: { direction?: string; limit?: number }): Promise<UnifiedEmail[]>;
+  listConversations(params?: { channel?: string; status?: string; limit?: number }): Promise<UnifiedConversation[]>;
   getConversation(id: string): Promise<UnifiedConversation>;
-  getConversationMessages(id: string, params?: { limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedMessage>>;
-  listScrapingTasks(params?: { status?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<ScrapingTaskSummary>>;
+  getConversationMessages(id: string, params?: { limit?: number }): Promise<UnifiedMessage[]>;
+  listScrapingTasks(params?: { status?: string; limit?: number }): Promise<ScrapingTaskSummary[]>;
   getScrapingTask(id: string): Promise<ScrapingTaskSummary>;
-  listEmails(params?: { direction?: string; domain?: string; status?: string; limit?: number; cursor?: string }): Promise<PaginatedResponse<UnifiedEmail>>;
+  listEmails(params?: { direction?: string; domain?: string; status?: string; limit?: number }): Promise<UnifiedEmail[]>;
   getEmail(id: string): Promise<UnifiedEmail>;
   search(params: { q: string; limit?: number }): Promise<SearchResults>;
 }
